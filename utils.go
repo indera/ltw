@@ -77,7 +77,8 @@ type ListInput struct {
 }
 
 // The in-memory storage
-var storage = make(map[string]Record)
+// var storage = make(map[string]Record)
+var storage = NewSafeMap()
 
 func storeRecord(in *Record) {
 	if in == nil {
@@ -85,13 +86,14 @@ func storeRecord(in *Record) {
 	}
 
 	// TODO: check for presence and return a specific error
-	// TODO: use a mutex
-	storage[in.ID] = *in
-	slog.Info("count updated", slog.Any("count", len(storage)))
+	//storage[in.ID] = *in
+	storage.Set(in.ID, *in)
+	slog.Info("count updated", slog.Any("count", storage.Size()))
 }
 
 func findRecordByID(id string) (*Record, error) {
-	r, found := storage[id]
+	//r, found := storage[id]
+	r, found := storage.Get(id)
 
 	if !found {
 		return nil, fmt.Errorf("record not found with id: %s", id)
@@ -106,7 +108,9 @@ func deleteRecord(id string) error {
 		return fmt.Errorf("delete record error: %w", err)
 	}
 
-	delete(storage, id)
+	//delete(storage, id)
+	storage.Delete(id)
+
 	slog.Info("deleted record", slog.Any("record", record))
 	return nil
 }
@@ -166,13 +170,21 @@ func listRecords(listInput ListInput) ([]Record, error) {
 
 	slog.Info("prepare filtering", slog.Any("filterMap", filterMap))
 
-	for _, record := range storage {
+	//for _, record := range storage {
+	for _, recordKey := range storage.GetKeys() {
+		record, found := storage.Get(recordKey)
+
+		if !found {
+			slog.Warn("lookup failed", slog.Any("recordKey", recordKey))
+			continue
+		}
+
 		slog.Info("checking record", slog.Any("record", record))
 
 		if len(filterMap) > 0 {
 
 			for _, recordLbl := range record.Labels {
-				slog.Info("WTF check", slog.Any("recordLbl", recordLbl))
+				slog.Debug("checking ...", slog.Any("recordLbl", recordLbl))
 
 				_, found := filterMap[recordLbl]
 
